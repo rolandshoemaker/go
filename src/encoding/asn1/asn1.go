@@ -596,7 +596,7 @@ func parseTagAndLength(bytes []byte, initOffset int) (ret tagAndLength, offset i
 // parseSequenceOf is used for SEQUENCE OF and SET OF values. It tries to parse
 // a number of ASN.1 values from the given byte slice and returns them as a
 // slice of Go values of the given type.
-func parseSequenceOf(bytes []byte, sliceType reflect.Type, elemType reflect.Type) (ret reflect.Value, err error) {
+func parseSequenceOf(bytes []byte, sliceType reflect.Type, elemType reflect.Type, sliceParams fieldParameters) (ret reflect.Value, err error) {
 	matchAny, expectedTag, compoundType, ok := getUniversalType(elemType)
 	if !ok {
 		err = StructuralError{"unknown Go type for slice"}
@@ -635,10 +635,9 @@ func parseSequenceOf(bytes []byte, sliceType reflect.Type, elemType reflect.Type
 		numElements++
 	}
 	ret = reflect.MakeSlice(sliceType, numElements, numElements)
-	params := fieldParameters{}
 	offset := 0
 	for i := 0; i < numElements; i++ {
-		offset, err = parseField(ret.Index(i), bytes, offset, params)
+		offset, err = parseField(ret.Index(i), bytes, offset, sliceParams)
 		if err != nil {
 			return
 		}
@@ -958,7 +957,11 @@ func parseField(v reflect.Value, bytes []byte, initOffset int, params fieldParam
 			reflect.Copy(val, reflect.ValueOf(innerBytes))
 			return
 		}
-		newSlice, err1 := parseSequenceOf(innerBytes, sliceType, sliceType.Elem())
+		var sliceParams fieldParameters
+		if params.sliceParameters != nil {
+			sliceParams = *params.sliceParameters
+		}
+		newSlice, err1 := parseSequenceOf(innerBytes, sliceType, sliceType.Elem(), sliceParams)
 		if err1 == nil {
 			val.Set(newSlice)
 		}
@@ -1062,20 +1065,26 @@ func setDefaultValue(v reflect.Value, params fieldParameters) (ok bool) {
 //
 // The following tags on struct fields have special meaning to Unmarshal:
 //
-//	application specifies that an APPLICATION tag is used
-//	private     specifies that a PRIVATE tag is used
-//	default:x   sets the default value for optional integer fields (only used if optional is also present)
-//	explicit    specifies that an additional, explicit tag wraps the implicit one
-//	optional    marks the field as ASN.1 OPTIONAL
-//	set         causes a SET, rather than a SEQUENCE type to be expected
-//	tag:x       specifies the ASN.1 tag number; implies ASN.1 CONTEXT SPECIFIC
+//	application  specifies that an APPLICATION tag is used
+//	private      specifies that a PRIVATE tag is used
+//	default:x    sets the default value for optional integer fields (only used if optional is also present)
+//	explicit     specifies that an additional, explicit tag wraps the implicit one
+//	optional     marks the field as ASN.1 OPTIONAL
+//	set          causes a SET, rather than a SEQUENCE type to be expected
+//	tag:x        specifies the ASN.1 tag number; implies ASN.1 CONTEXT SPECIFIC
+//  sliceParam:x sets struct tags on elements of a slice
 //
 // If the type of the first field of a structure is RawContent then the raw
 // ASN1 contents of the struct will be stored in it.
 //
-// If the type name of a slice element ends with "SET" then it's treated as if
-// the "set" tag was set on it. This can be used with nested slices where a
-// struct tag cannot be given.
+// If the type name of a slice type ends with "SET" then it's treated as if
+// the "set" tag was set on it. This results in interpreting the type as a
+// SET OF x rather than a SEQUENCE OF x. This can be used with nested slices
+// where a struct tag cannot be given.
+//
+// The sliceParam field tag may be used on slices to set tags on the elements
+// of the slice. For instance using sliceParam:set on a []struct will result
+// in a SEQUENCE OF SET rather than a SEQUENCE OF SEQUENCE.
 //
 // Other ASN.1 types are not supported; if it encounters them,
 // Unmarshal returns a parse error.

@@ -73,16 +73,17 @@ type tagAndLength struct {
 
 // fieldParameters is the parsed representation of tag string from a structure field.
 type fieldParameters struct {
-	optional     bool   // true iff the field is OPTIONAL
-	explicit     bool   // true iff an EXPLICIT tag is in use.
-	application  bool   // true iff an APPLICATION tag is in use.
-	private      bool   // true iff a PRIVATE tag is in use.
-	defaultValue *int64 // a default value for INTEGER typed fields (maybe nil).
-	tag          *int   // the EXPLICIT or IMPLICIT tag (maybe nil).
-	stringType   int    // the string tag to use when marshaling.
-	timeType     int    // the time tag to use when marshaling.
-	set          bool   // true iff this should be encoded as a SET
-	omitEmpty    bool   // true iff this should be omitted if empty when marshaling.
+	optional        bool   // true iff the field is OPTIONAL
+	explicit        bool   // true iff an EXPLICIT tag is in use.
+	application     bool   // true iff an APPLICATION tag is in use.
+	private         bool   // true iff a PRIVATE tag is in use.
+	defaultValue    *int64 // a default value for INTEGER typed fields (maybe nil).
+	tag             *int   // the EXPLICIT or IMPLICIT tag (maybe nil).
+	stringType      int    // the string tag to use when marshaling.
+	timeType        int    // the time tag to use when marshaling.
+	set             bool   // true iff this should be encoded as a SET
+	omitEmpty       bool   // true iff this should be omitted if empty when marshaling.
+	sliceParameters *fieldParameters
 
 	// Invariants:
 	//   if explicit is set, tag is non-nil.
@@ -92,6 +93,7 @@ type fieldParameters struct {
 // parseFieldParameters will parse it into a fieldParameters structure,
 // ignoring unknown parts of the string.
 func parseFieldParameters(str string) (ret fieldParameters) {
+	var sliceParams []string
 	for _, part := range strings.Split(str, ",") {
 		switch {
 		case part == "optional":
@@ -139,7 +141,13 @@ func parseFieldParameters(str string) (ret fieldParameters) {
 			}
 		case part == "omitempty":
 			ret.omitEmpty = true
+		case strings.HasPrefix(part, "sliceParam:"):
+			sliceParams = append(sliceParams, part[11:])
 		}
+	}
+	if len(sliceParams) > 0 {
+		sp := parseFieldParameters(strings.Join(sliceParams, ","))
+		ret.sliceParameters = &sp
 	}
 	return
 }

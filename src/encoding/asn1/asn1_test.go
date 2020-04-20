@@ -1129,3 +1129,17 @@ func TestBMPString(t *testing.T) {
 		}
 	}
 }
+
+func TestSliceParams(t *testing.T) {
+	var seqOfSet []struct {
+		Inner int
+	}
+	b, err := hex.DecodeString("300f310302010131030201023103020103")
+	if err != nil {
+		t.Fatalf("failed to decode from hex string: %s", err)
+	}
+	_, err = UnmarshalWithParams(b, &seqOfSet, "sliceParam:set")
+	if err != nil {
+		t.Fatalf("failed to unmarshal SEQUENCE OF SET using sliceParam tag: %s", err)
+	}
+}

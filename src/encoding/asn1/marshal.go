@@ -495,6 +495,9 @@ func makeBody(value reflect.Value, params fieldParameters) (e encoder, err error
 		}
 
 		var fp fieldParameters
+		if params.sliceParameters != nil {
+			fp = *params.sliceParameters
+		}
 
 		switch l := v.Len(); l {
 		case 0:
