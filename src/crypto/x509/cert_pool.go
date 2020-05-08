@@ -5,6 +5,7 @@
 package x509
 
 import (
+	"bytes"
 	"encoding/pem"
 	"errors"
 	"runtime"
@@ -73,12 +74,18 @@ func (s *CertPool) findPotentialParents(cert *Certificate) []int {
 	}
 
 	var candidates []int
-	if len(cert.AuthorityKeyId) > 0 {
-		candidates = s.bySubjectKeyId[string(cert.AuthorityKeyId)]
+	// look for certificates with matching issuer/subject
+	for _, c := range s.byName[string(cert.RawIssuer)] {
+		// if parent has SKID and leaf has AKID and they don't match then
+		// discard parent as a potential issuer, despite matching
+		// issuer/subject
+		if len(s.certs[c].SubjectKeyId) > 0 && len(cert.AuthorityKeyId) > 0 &&
+			!bytes.Equal(s.certs[c].SubjectKeyId, cert.AuthorityKeyId) {
+			continue
+		}
+		candidates = append(candidates, c)
 	}
-	if len(candidates) == 0 {
-		candidates = s.byName[string(cert.RawIssuer)]
-	}
+
 	return candidates
 }
 
